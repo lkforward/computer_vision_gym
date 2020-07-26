@@ -7,6 +7,8 @@ from tensorflow.keras.layers import Conv2D, Dense, Flatten, MaxPooling2D
 from tensorflow.keras.optimizers import SGD
 from tensorflow.keras.utils import to_categorical
 
+from matplotlib import pyplot
+
 
 print()
 print("Hello, TF2 world!")
@@ -51,15 +53,18 @@ def prep_pixels(train, test):
 # Define the Model:
 def create_model():
     model = Sequential()
-    model.add(Conv2D(32, (3, 3), activation='relu', kernel_initializer='he_uniform', input_shape=(28, 28, 1)))
+    model.add(Conv2D(32, (3, 3), activation='relu', 
+        kernel_initializer='he_uniform', input_shape=(28, 28, 1)))
     model.add(MaxPooling2D((2, 2)))
     model.add(Flatten())
-    model.add(Dense(100, activation='relu', kernel_initializer='he_uniform'))
+    model.add(Dense(100, activation='relu', 
+        kernel_initializer='he_uniform'))
     model.add(Dense(10, activation='softmax'))
 
     # Compile model
     opt = SGD(lr=0.01, momentum=0.9)
-    model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=opt, loss='categorical_crossentropy', 
+        metrics=['accuracy'])
 
     return model
 
@@ -78,16 +83,21 @@ def create_model():
 #   get a history = [acc_train_list, acc_valid_list]
 
 from sklearn.model_selection import KFold
-def evaluate_model(dataX, dataY, n_folds = 5):
+def evaluate_model(dataX, dataY, n_folds=5, n_epochs=10):
     scores, histories = [], []
     kfold = KFold(n_folds, shuffle=True, random_state=1)
     for train_ix, valid_ix in kfold.split(dataX):
         trainX, trainY, validX, validY = dataX[train_ix], dataY[train_ix], dataX[valid_ix], dataY[valid_ix]
 
-        # NOTE: fit() take either numpy array, tf tensors, or tf Dataset. 
+        # NOTE: 
+        # 1. fit() take either numpy array, tf tensors, or tf Dataset. 
         # Here numpy arrays are provided. 
+        # 2. fit() returns a history object. history.history is a 
+        # dictionary with keys ['loss', 'accuracy', 'val_loss', 
+        #'val_accuracy']. 
         model = create_model()
-        history = model.fit(trainX, trainY, epochs=10, batch_size=32, 
+        history = model.fit(trainX, trainY, 
+                            epochs=n_epochs, batch_size=32, 
                             validation_data=(validX, validY),
                             verbose=0)
         _, acc = model.evaluate(validX, validY, verbose=0)
@@ -96,7 +106,33 @@ def evaluate_model(dataX, dataY, n_folds = 5):
         scores.append(acc)
         histories.append(history)
 
-    return scores, history
+    return scores, histories
+
+# plot diagnostic learning curves
+def summarize_diagnostics(histories):
+    for i in range(len(histories)):
+        # plot loss
+        pyplot.subplot(211)
+        pyplot.title('Cross Entropy Loss')
+        pyplot.plot(histories[i].history['loss'], color='blue', label='train')
+        pyplot.plot(histories[i].history['val_loss'], color='orange', label='test')
+        # plot accuracy
+        pyplot.subplot(212)
+        pyplot.title('Classification Accuracy')
+        pyplot.plot(histories[i].history['accuracy'], color='blue', label='train')
+        pyplot.plot(histories[i].history['val_accuracy'], color='orange', label='test')
+    pyplot.show()
+ 
+# summarize model performance
+def summarize_performance(scores):
+    # print summary
+    print(f"Accuracy: mean={np.mean(scores): .3f} std={np.std(scores): .3f}, n={len(scores)}")
+    # box and whisker plots of results
+    pyplot.boxplot(scores)
+    pyplot.title("Model Accuracy on Validation Set")
+    pyplot.ylabel("Accuracy")
+    pyplot.show()
+ 
 
 train_images, train_labels, test_images, test_labels = load_data()
 train_images, test_images = prep_pixels(train_images, test_images)
@@ -107,10 +143,15 @@ t1 = time.clock()
 
 print()
 print("Evaluate Model:")
-scores, histories = evaluate_model(train_images, train_labels)
+scores, histories = evaluate_model(train_images, train_labels, 
+    n_epochs=10)
 print("len(scores) =", len(scores))
 print("scores[0] =", scores[0], "scores[-1] =", scores[-1])
 print("histories[-1] =", histories[-1])
 
+# import pdb; pdb.set_trace()
+summarize_diagnostics(histories)
+summarize_performance(scores)
+
 print()
-print("Total execution time:", time.clock() - t1)
+print("Total execution time (sec): ", time.clock() - t1)
